@@ -52,7 +52,7 @@ class Shotgun(object):
         if method_params is not None:
             params.append(method_params)
 
-        print json.dumps(request, indent=4, sort_keys=True)
+        # print json.dumps(request, indent=4, sort_keys=True)
 
         endpoint = self.base_url.rstrip('/') + '/' + self.api_path.lstrip('/')
         response_handle = self.session.post(endpoint, data=json.dumps(request), headers={
@@ -79,16 +79,15 @@ class Shotgun(object):
             return e
 
     def find(self, *args, **kwargs):
-        if kwargs.get('async'):
+        if kwargs.get('threads'):
             return self.find_iter(*args, **kwargs)
         return list(self.find_iter(*args, **kwargs))
 
     def find_iter(self, *args, **kwargs):
-        async = kwargs.pop('async', False)
-        async_count = kwargs.pop('async_count', 1)
+        threads = kwargs.pop('threads', 0)
         finder = _Finder(self, *args, **kwargs)
-        if async:
-            return finder.iter_async(async_count)
+        if threads:
+            return finder.iter_async(threads)
         else:
             return finder.iter_sync()
 
@@ -222,6 +221,12 @@ class _Finder(object):
                 yield e
 
     def iter_async(self, count=1):
+        
+        if count is True: # for sg.find(..., threads=True)
+            count = 1
+        if not isinstance(count, int) or count <= 0:
+            raise ValueError('async count must be greater than 0; got %r' % count)
+
         futures = []
         while True:
             while len(futures) < count:

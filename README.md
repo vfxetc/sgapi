@@ -7,7 +7,7 @@ This project exists because we wanted to have a little more control over the det
 Extra things that we implement include:
 
 - forgiving filters which understand any of the 3 filter dialects;
-- asynchonous paging during find via `async=True` and `async_count=<number of threads>`.
+- asynchonous paging during find via `threads=<number of threads>`.
 
 
 [shotgun_api3]: https://github.com/shotgunsoftware/python-api
