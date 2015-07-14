@@ -1,4 +1,4 @@
-'''Translating filters.
+'''
 
 There are 3 different filter syntaxes we tend to see:
 
@@ -8,7 +8,7 @@ There are 3 different filter syntaxes we tend to see:
 
         (path, relation, *values)
 
-    e.g.::
+   e.g.::
 
         ('id', 'is', 1234)
 
@@ -54,6 +54,7 @@ Here we offer functions to adapt any of the above syntaxes into the RPC version.
 
 
 def adapt_filters(filters, operator=None):
+    """Given any of the 3 filter dialects, translate into the remote condition syntax."""
 
     if isinstance(filters, dict):
 

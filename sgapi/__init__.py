@@ -1,1 +1,4 @@
-from .core import Shotgun
+from .core import Shotgun, ShotgunError
+
+# For API compatibility
+Fault = ShotgunError

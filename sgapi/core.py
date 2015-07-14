@@ -14,7 +14,7 @@ class ShotgunError(Exception):
 class Shotgun(object):
 
     def __init__(self, base_url, script_name, api_key):
-
+        """Construct the API client."""
         self.config = self # For API compatibility
 
         self.base_url = base_url
@@ -28,6 +28,17 @@ class Shotgun(object):
         self.records_per_page = 500 # Match the Python API.
 
     def call(self, method_name, method_params=None, authenticate=True):
+        """Make a raw API request.
+
+        :param str method_name: The remote method to call, e.g. ``"info"``
+            or ``"read"``.
+        :param dict method_params: The parameters for that method.
+        :param bool authenticat: Pass authentication info along?
+
+        :raises ShotgunError: if there is a remote error.
+        :returns: the API results.
+
+        """
 
         if method_name == 'info' and method_params is not None:
             raise ValueError('info takes no params')
@@ -63,27 +74,40 @@ class Shotgun(object):
             response = json.loads(response_handle.text)
             if response.get('exception'):
                 raise ShotgunError(response.get('message', 'unknown error'))
-            return response['results']
+            if response.get('results'):
+                return response['results']
+            else:
+                return response
         else:
             return response_handle.text
 
     def info(self):
+        """Basic ``info`` request."""
         return self.call('info', authenticate=False)
 
     def find_one(self, entity_type, filters, fields=None, order=None,
         filter_operator=None, retired_only=False, include_archived_projects=True
     ):
+        """Same as `Shotgun's find_one <https://github.com/shotgunsoftware/python-api/wiki/Reference%3A-Methods#find_one>`_"""
         for e in self.find_iter(entity_type, filters, fields, order,
             filter_operator, 1, retired_only, 1, include_archived_projects
         ):
             return e
 
     def find(self, *args, **kwargs):
+        """Same as `Shotgun's find <https://github.com/shotgunsoftware/python-api/wiki/Reference%3A-Methods#find>`_
+
+        If ``threads`` is set to an integer, that many threads are used to
+        make consecutive page requests in parallel.
+
+
+        """
         if kwargs.get('threads'):
             return self.find_iter(*args, **kwargs)
         return list(self.find_iter(*args, **kwargs))
 
     def find_iter(self, *args, **kwargs):
+        """Like :meth:`find`, but yields entities as they become available."""
         threads = kwargs.pop('threads', 0)
         finder = _Finder(self, *args, **kwargs)
         if threads:
