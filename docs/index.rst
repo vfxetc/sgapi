@@ -19,6 +19,16 @@ Extra things that we implement include:
 - asynchronous paging during find via `threads=<number of threads>`.
 
 
+Things we do not implement include:
+
+- time parsing
+- uploads
+- schema
+- user auth
+- sudo
+
+
+What parts we have implemented we try to keep compatible with ``shotgun_api3``.
 
 
 Installation
