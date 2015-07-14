@@ -1,4 +1,5 @@
 import json
+import threading
 
 from requests import Session
 
@@ -8,8 +9,6 @@ from .order import adapt_order
 
 class ShotgunError(Exception):
     pass
-
-
 
 
 class Shotgun(object):
@@ -80,14 +79,62 @@ class Shotgun(object):
             return e
 
     def find(self, *args, **kwargs):
+        if kwargs.get('async'):
+            return self.find_iter(*args, **kwargs)
         return list(self.find_iter(*args, **kwargs))
 
-    def find_iter(self, entity_type, filters, fields=None, order=None,
+    def find_iter(self, *args, **kwargs):
+        async = kwargs.pop('async', False)
+        async_count = kwargs.pop('async_count', 1)
+        finder = _Finder(self, *args, **kwargs)
+        if async:
+            return finder.iter_async(async_count)
+        else:
+            return finder.iter_sync()
+
+
+class Future(threading.Thread):
+
+    """Really cheap version of concurrent.futures."""
+
+    @classmethod
+    def submit(cls, func, *args, **kwargs):
+        future = cls(func, args, kwargs)
+        future._thread.start()
+        return future
+
+    def __init__(self, func, args=None, kwargs=None):
+        self._func = func
+        self._args = args or ()
+        self._kwargs = kwargs or {}
+        self._thread = threading.Thread(target=self._eval)
+
+    def _eval(self):
+        try:
+            self._result = self._func(*self._args, **self._kwargs)
+            self._exc = None
+        except Exception as e:
+            self._result = None
+            self._exc = e
+
+    def result(self):
+        self._thread.join()
+        if self._exc:
+            raise self._exc
+        else:
+            return self._result
+
+
+class _Finder(object):
+
+    def __init__(self, sg, entity_type, filters, fields=None, order=None,
             filter_operator=None, limit=0, retired_only=False, page=0,
             include_archived_projects=True,
             
             per_page=0 # Different from shotgun_api3 starting here.
         ):
+
+        self.sg = sg
 
         # We aren't a huge fan of zero indicating defaults, but we are trying
         # to be compatible here.
@@ -97,11 +144,11 @@ class Shotgun(object):
         if per_page > 500:
             raise ValueError("per_page cannot be higher than 500; %r" % per_page)
 
-        params = {
+        self.base_params = {
 
             'type': entity_type,
             'filters': adapt_filters(filters, filter_operator),
-            'return_fields': fields or ['id'],
+            'return_fields': list(fields or ['id']),
             'sorts': adapt_order(order),
 
             # These both seem to default to the above default values on the
@@ -111,54 +158,81 @@ class Shotgun(object):
 
         }
 
-        has_limit = bool(limit)
-        limit_remaining = limit
+        self.has_limit = bool(limit)
+        self.limit_remaining = limit
 
-        current_page = page or 1
-        per_page = per_page or self.records_per_page
+        self.current_page = page or 1
+        self.per_page = per_page or self.sg.records_per_page
 
-        entities_returned = 0
+        self.entities_returned = 0
 
+        self.done = False
+
+    def get_next_params(self):
+
+        params = self.base_params.copy()
+        params['paging'] = {
+            'current_page': self.current_page,
+            'entities_per_page': self.per_page,
+        }
+        self.current_page += 1
+
+        # We only need paging info if we aren't making a specific request
+        params['return_paging_info'] = not (self.has_limit and self.limit_remaining <= self.per_page)
+
+        return params
+
+    def call(self, params=None):
+
+        if params is None:
+            params = self.get_next_params()
+
+        # Do the call!
+        res = self.sg.call('read', params)
+
+        # print json.dumps(res, sort_keys=True, indent=4)
+
+        entities = res['entities']
+
+        self.entities_returned += len(entities)
+
+        if self.has_limit:
+            entities = entities[:self.limit_remaining]
+            self.limit_remaining -= len(entities)
+
+        if not self.done:
+
+            # Did we get what we wanted?
+            if self.has_limit and self.limit_remaining <= 0:
+                self.done = True
+
+            # Did we run out?
+            elif len(entities) < self.per_page:
+                self.done = True
+
+            # Is this the end?
+            elif 'paging_info' in res and res['paging_info']['entity_count'] <= self.entities_returned:
+                self.done = True
+
+        return entities
+
+    def iter_sync(self):
+        while not self.done:
+            for e in self.call():
+                yield e
+
+    def iter_async(self, count=1):
+        futures = []
         while True:
-
-            params['paging'] = {
-                'current_page': current_page,
-                'entities_per_page': per_page,
-            }
-
-            # We only need paging info if we aren't making a specific request
-            params['return_paging_info'] = not (has_limit and limit_remaining <= per_page)
-
-            # Do the call!
-            res = self.call('read', params)
-
-            # print json.dumps(res, sort_keys=True, indent=4)
-
-            entities = res['entities']
-
-            entities_returned += len(entities)
-
-            if has_limit:
-                entities = entities[:limit_remaining]
-                limit_remaining -= len(entities)
-
+            while len(futures) < count:
+                params = self.get_next_params()
+                futures.append(Future.submit(self.call, params))
+            entities = futures.pop(0).result()
+            if not entities:
+                return
             for e in entities:
                 yield e
 
-
-            # Did we get what we wanted?
-            if has_limit and limit_remaining <= 0:
-                return
-
-            # Did we run out?
-            if len(entities) < per_page:
-                return
-
-            # Is this the end?
-            if 'paging_info' in res and res['paging_info']['entity_count'] <= entities_returned:
-                return
-
-            current_page += 1
 
 
 
