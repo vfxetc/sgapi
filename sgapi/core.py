@@ -1,10 +1,14 @@
 import json
+import logging
 import threading
 
 from requests import Session
 
 from .filters import adapt_filters
 from .order import adapt_order
+
+
+log = logging.getLogger(__name__)
 
 
 class ShotgunError(Exception):
@@ -215,7 +219,12 @@ class _Finder(object):
 
         # print json.dumps(res, sort_keys=True, indent=4)
 
-        entities = res['entities']
+        try:
+            entities = res['entities']
+        except (KeyError, TypeError):
+            # We've seen strings come back a few times; it is strange.
+            log.error('malformed Shotgun response: %r' % json.dumps(res))
+            raise
 
         self.entities_returned += len(entities)
 
