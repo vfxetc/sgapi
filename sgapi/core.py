@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import threading
@@ -70,7 +71,8 @@ class Shotgun(object):
         # print json.dumps(request, indent=4, sort_keys=True)
 
         endpoint = self.base_url.rstrip('/') + '/' + self.api_path.lstrip('/')
-        response_handle = self.session.post(endpoint, data=json.dumps(request), headers={
+        encoded_request = json.dumps(request, default=self._json_default)
+        response_handle = self.session.post(endpoint, data=encoded_request, headers={
             'User-Agent': 'sgapi/0.1',
         })
         content_type = (response_handle.headers.get('Content-Type') or 'application/json').lower()
@@ -84,6 +86,12 @@ class Shotgun(object):
                 return response
         else:
             return response_handle.text
+
+    def _json_default(self, v):
+        if isinstance(v, datetime.datetime):
+            # TODO: timezones!
+            return v.replace(microsecond=0).isoformat('T') + 'Z'
+        return str(v)
 
     def info(self):
         """Basic ``info`` request."""
