@@ -269,15 +269,22 @@ class _Finder(object):
             raise ValueError('async count must be greater than 0; got %r' % count)
 
         futures = []
+        entities = []
         while True:
+
             while len(futures) < count:
                 params = self.get_next_params()
                 futures.append(Future.submit(self.call, params))
+
+            # We yield here so that we will have had a chance to queue up the
+            # next request after we captured the results.
+            
+            for e in entities:
+                yield e
+
             entities = futures.pop(0).result()
             if not entities:
                 return
-            for e in entities:
-                yield e
 
 
 
