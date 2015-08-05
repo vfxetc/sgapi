@@ -16,6 +16,10 @@ class ShotgunError(Exception):
     pass
 
 
+def minimize_entity(e):
+    return {'type': e['type'], 'id': e['id']}
+
+
 class Shotgun(object):
 
     def __init__(self, base_url, script_name, api_key):
@@ -47,7 +51,7 @@ class Shotgun(object):
 
         if method_name == 'info' and method_params is not None:
             raise ValueError('info takes no params')
-        if method_name != 'info' and method_params is None:
+        if method_name not in ('info', 'schema_read', 'schema_entity_read') and method_params is None:
             raise ValueError('%s takes params' % method_name)
 
         if not self.session:
@@ -127,6 +131,25 @@ class Shotgun(object):
         else:
             return finder.iter_sync()
 
+    def schema_read(self, project_entity=None):
+        params = {}
+        if project_entity:
+            params['project_entity'] = minimize_entity(project_entity)
+        return self.call('schema_read', params or None)
+
+    def schema_entity_read(self, project_entity=None):
+        params = {}
+        if project_entity:
+            params['project_entity'] = minimize_entity(project_entity)
+        return self.call('schema_entity_read', params or None)
+
+    def schema_field_read(self, entity_type, field_name=None, project_entity=None):
+        params = {'type': entity_type}
+        if field_name:
+            params['field_name'] = field_name
+        if project_entity:
+            params['project'] = minimize_entity(project_entity)
+        return self.call('schema_field_read', params)
 
 class Future(threading.Thread):
 
@@ -285,7 +308,6 @@ class _Finder(object):
             entities = futures.pop(0).result()
             if not entities:
                 return
-
 
 
 
