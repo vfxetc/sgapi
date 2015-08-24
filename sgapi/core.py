@@ -2,7 +2,10 @@ import datetime
 import json
 import logging
 
+from ssl import SSLError as _SSLError
+
 from requests import Session
+from requests.exceptions import RequestError as _RequestError
 
 from .filters import adapt_filters
 from .futures import Future
@@ -12,8 +15,11 @@ from .order import adapt_order
 log = logging.getLogger(__name__)
 
 
-class ShotgunError(Exception):
-    pass
+class ShotgunError(RuntimeError):
+    """An error returned from Shotgun."""
+
+class TransportError(IOError):
+    """Anything to do with the connection to Shotgun."""
 
 
 def minimize_entity(e):
@@ -76,9 +82,15 @@ class Shotgun(object):
 
         endpoint = self.base_url.rstrip('/') + '/' + self.api_path.lstrip('/')
         encoded_request = json.dumps(request, default=self._json_default)
-        response_handle = self.session.post(endpoint, data=encoded_request, headers={
-            'User-Agent': 'sgapi/0.1',
-        })
+        
+        try:
+            response_handle = self.session.post(endpoint, data=encoded_request, headers={
+                'User-Agent': 'sgapi/0.1',
+            })
+            response_handle.raise_for_status() # Assert it was 200 OK.
+        except (_RequestError, _SSLError) as e:
+            raise TransportError((e, str(e)))
+
         content_type = (response_handle.headers.get('Content-Type') or 'application/json').lower()
         if content_type.startswith('application/json') or content_type.startswith('text/javascript'):
             response = json.loads(response_handle.text)
@@ -223,8 +235,7 @@ class _Finder(object):
             entities = res['entities']
         except (KeyError, TypeError):
             # We've seen strings come back a few times; it is strange.
-            log.error('malformed Shotgun response: %r' % json.dumps(res))
-            raise
+            raise TransportError('malformed Shotgun response: %r' % json.dumps(res))
 
         self.entities_returned += len(entities)
 
