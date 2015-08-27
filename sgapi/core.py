@@ -5,7 +5,7 @@ import logging
 from ssl import SSLError as _SSLError
 
 from requests import Session
-from requests.exceptions import RequestError as _RequestError
+from requests.exceptions import RequestException as _RequestException
 
 from .filters import adapt_filters
 from .futures import Future
@@ -88,7 +88,7 @@ class Shotgun(object):
                 'User-Agent': 'sgapi/0.1',
             })
             response_handle.raise_for_status() # Assert it was 200 OK.
-        except (_RequestError, _SSLError) as e:
+        except (_RequestException, _SSLError) as e:
             raise TransportError((e, str(e)))
 
         content_type = (response_handle.headers.get('Content-Type') or 'application/json').lower()
