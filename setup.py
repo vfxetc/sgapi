@@ -15,6 +15,7 @@ setup(
     
     install_requires=[
         'requests',
+        'certifi',
     ],
 
     classifiers=[

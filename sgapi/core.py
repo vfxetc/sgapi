@@ -28,7 +28,7 @@ def minimize_entity(e):
 
 class Shotgun(object):
 
-    def __init__(self, base_url, script_name, api_key):
+    def __init__(self, base_url, script_name, api_key, sudo_as_login=None):
         """Construct the API client."""
         self.config = self # For API compatibility
 
@@ -39,6 +39,7 @@ class Shotgun(object):
         self.api_key = api_key
 
         self.session = None
+        self.sudo_as_login = sudo_as_login
 
         self.records_per_page = 500 # Match the Python API.
 
@@ -70,10 +71,13 @@ class Shotgun(object):
         }
 
         if authenticate:
-            params.append({
+            auth_params = {
                 'script_name': self.script_name,
                 'script_key': self.api_key, # The names differ because the Python and RPC names do differ.
-            })
+            }
+            if self.sudo_as_login:
+                auth_params['sudo_as_login'] = self.sudo_as_login
+            params.append(auth_params)
 
         if method_params is not None:
             params.append(method_params)
