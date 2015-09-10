@@ -15,20 +15,21 @@ to do at a low level.
 Extra things that we implement include:
 
 - forgiving filters which understand any of the 3 filter dialects;
+- asynchronous paging during find via ``threads=number_of_threads``.
 
-- asynchronous paging during find via `threads=<number of threads>`.
+Things we have not implemented yet include:
 
+- uploads;
+- schema;
+- user authentication;
+- automatic retries;
+- config attributes for anything we don't touch.
 
-Things we do not implement include:
+What parts we have implemented we generally try to keep compatible with
+``shotgun_api3``, with the following exceptions:
 
-- time parsing
-- uploads
-- schema
-- user auth
-- sudo
-
-
-What parts we have implemented we try to keep compatible with ``shotgun_api3``.
+- ``datetime`` and ``time`` are always in UTC;
+- ``unicode`` is not encoded to UTF-8 ``str``.
 
 
 Installation

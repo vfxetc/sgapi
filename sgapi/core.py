@@ -22,8 +22,25 @@ class TransportError(IOError):
     """Anything to do with the connection to Shotgun."""
 
 
-def minimize_entity(e):
+def _minimize_entity(e):
     return {'type': e['type'], 'id': e['id']}
+
+def _visit_values(data, func):
+    if isinstance(data, dict):
+        return {k: _visit_values(v, func) for k, v in data.iteritems()}
+    elif isinstance(data, (list, tuple)):
+        return [_visit_values(v, func) for v in data]
+    else:
+        return func(data)
+
+def _transform_inbound_values(value):
+    # Timestamps.
+    if isinstance(value, basestring) and len(value) == 20:
+        try:
+            return datetime.datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ')
+        except ValueError:
+            pass
+    return value
 
 
 class Shotgun(object):
@@ -97,13 +114,16 @@ class Shotgun(object):
 
         content_type = (response_handle.headers.get('Content-Type') or 'application/json').lower()
         if content_type.startswith('application/json') or content_type.startswith('text/javascript'):
+            
             response = json.loads(response_handle.text)
             if response.get('exception'):
                 raise ShotgunError(response.get('message', 'unknown error'))
             if response.get('results'):
-                return response['results']
-            else:
-                return response
+                response = response['results']
+
+            # Transform timestamps.
+            return _visit_values(response, _transform_inbound_values)
+
         else:
             return response_handle.text
 
@@ -150,13 +170,13 @@ class Shotgun(object):
     def schema_read(self, project_entity=None):
         params = {}
         if project_entity:
-            params['project_entity'] = minimize_entity(project_entity)
+            params['project_entity'] = _minimize_entity(project_entity)
         return self.call('schema_read', params or None)
 
     def schema_entity_read(self, project_entity=None):
         params = {}
         if project_entity:
-            params['project_entity'] = minimize_entity(project_entity)
+            params['project_entity'] = _minimize_entity(project_entity)
         return self.call('schema_entity_read', params or None)
 
     def schema_field_read(self, entity_type, field_name=None, project_entity=None):
@@ -164,7 +184,7 @@ class Shotgun(object):
         if field_name:
             params['field_name'] = field_name
         if project_entity:
-            params['project'] = minimize_entity(project_entity)
+            params['project'] = _minimize_entity(project_entity)
         return self.call('schema_field_read', params)
 
 
