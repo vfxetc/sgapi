@@ -59,6 +59,7 @@ class Shotgun(object):
         self.sudo_as_login = sudo_as_login
 
         self.records_per_page = 500 # Match the Python API.
+        self.timeout_secs = 60.1 # Not the same as shotgun_api3
 
     def call(self, method_name, method_params=None, authenticate=True):
         """Make a raw API request.
@@ -107,7 +108,7 @@ class Shotgun(object):
         try:
             response_handle = self.session.post(endpoint, data=encoded_request, headers={
                 'User-Agent': 'sgapi/0.1',
-            })
+            }, timeout=self.timeout_secs)
             response_handle.raise_for_status() # Assert it was 200 OK.
         except (_RequestException, _SSLError) as e:
             raise TransportError((e, str(e)))
