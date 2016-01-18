@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import functools
 
 from ssl import SSLError as _SSLError
 
@@ -43,6 +44,16 @@ def _transform_inbound_values(value):
     return value
 
 
+def asyncable(func):
+    @functools.wraps(func)
+    def _wrapped(self, *args, **kwargs):
+        if kwargs.pop('async', False):
+            return Future.submit(func, self, *args, **kwargs)
+        else:
+            return func(self, *args, **kwargs)
+    return _wrapped
+
+
 class Shotgun(object):
 
     def __init__(self, base_url, script_name, api_key, sudo_as_login=None):
@@ -61,7 +72,7 @@ class Shotgun(object):
         self.records_per_page = 500 # Match the Python API.
         self.timeout_secs = 60.1 # Not the same as shotgun_api3
 
-    def call(self, method_name, method_params=None, authenticate=True):
+    def _call(self, method_name, method_params=None, authenticate=True):
         """Make a raw API request.
 
         :param str method_name: The remote method to call, e.g. ``"info"``
@@ -128,16 +139,20 @@ class Shotgun(object):
         else:
             return response_handle.text
 
+    call = asyncable(_call)
+
     def _json_default(self, v):
         if isinstance(v, datetime.datetime):
             # TODO: timezones!
             return v.replace(microsecond=0).isoformat('T') + 'Z'
         return str(v)
 
+    @asyncable
     def info(self):
         """Basic ``info`` request."""
-        return self.call('info', authenticate=False)
+        return self._call('info', authenticate=False)
 
+    @asyncable
     def find_one(self, entity_type, filters, fields=None, order=None,
         filter_operator=None, retired_only=False, include_archived_projects=True
     ):
@@ -147,6 +162,7 @@ class Shotgun(object):
         ):
             return e
 
+    @asyncable
     def find(self, *args, **kwargs):
         """Same as `Shotgun's find <https://github.com/shotgunsoftware/python-api/wiki/Reference%3A-Methods#find>`_
 
@@ -168,25 +184,28 @@ class Shotgun(object):
         else:
             return finder.iter_sync()
 
+    @asyncable
     def schema_read(self, project_entity=None):
         params = {}
         if project_entity:
             params['project_entity'] = _minimize_entity(project_entity)
-        return self.call('schema_read', params or None)
+        return self._call('schema_read', params or None)
 
+    @asyncable
     def schema_entity_read(self, project_entity=None):
         params = {}
         if project_entity:
             params['project_entity'] = _minimize_entity(project_entity)
-        return self.call('schema_entity_read', params or None)
+        return self._call('schema_entity_read', params or None)
 
+    @asyncable
     def schema_field_read(self, entity_type, field_name=None, project_entity=None):
         params = {'type': entity_type}
         if field_name:
             params['field_name'] = field_name
         if project_entity:
             params['project'] = _minimize_entity(project_entity)
-        return self.call('schema_field_read', params)
+        return self._call('schema_field_read', params)
 
 
 class _Finder(object):
