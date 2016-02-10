@@ -72,6 +72,14 @@ class Shotgun(object):
         self.records_per_page = 500 # Match the Python API.
         self.timeout_secs = 60.1 # Not the same as shotgun_api3
 
+        self._server_info = None
+
+    @property
+    def server_info(self):
+        if self._server_info is None:
+            self.info()
+        return self._server_info
+
     def _call(self, method_name, method_params=None, authenticate=True):
         """Make a raw API request.
 
@@ -92,7 +100,7 @@ class Shotgun(object):
 
         if not self.session:
             self.session = Session()
-        
+
         params = []
         request = {
             'method_name': method_name,
@@ -115,7 +123,7 @@ class Shotgun(object):
 
         endpoint = self.base_url.rstrip('/') + '/' + self.api_path.lstrip('/')
         encoded_request = json.dumps(request, default=self._json_default)
-        
+
         try:
             response_handle = self.session.post(endpoint, data=encoded_request, headers={
                 'User-Agent': 'sgapi/0.1',
@@ -126,7 +134,7 @@ class Shotgun(object):
 
         content_type = (response_handle.headers.get('Content-Type') or 'application/json').lower()
         if content_type.startswith('application/json') or content_type.startswith('text/javascript'):
-            
+
             response = json.loads(response_handle.text)
             if response.get('exception'):
                 raise ShotgunError(response.get('message', 'unknown error'))
@@ -150,7 +158,8 @@ class Shotgun(object):
     @asyncable
     def info(self):
         """Basic ``info`` request."""
-        return self._call('info', authenticate=False)
+        info = self._server_info = self._call('info', authenticate=False)
+        return info
 
     @asyncable
     def find_one(self, entity_type, filters, fields=None, order=None,
@@ -213,7 +222,7 @@ class _Finder(object):
     def __init__(self, sg, entity_type, filters, fields=None, order=None,
             filter_operator=None, limit=0, retired_only=False, page=0,
             include_archived_projects=True,
-            
+
             per_page=0 # Different from shotgun_api3 starting here.
         ):
 
@@ -309,7 +318,7 @@ class _Finder(object):
                 yield e
 
     def iter_async(self, count=1):
-        
+
         if count is True: # for sg.find(..., threads=True)
             count = 1
         if not isinstance(count, int) or count <= 0:
@@ -325,19 +334,10 @@ class _Finder(object):
 
             # We yield here so that we will have had a chance to queue up the
             # next request after we captured the results.
-            
+
             for e in entities:
                 yield e
 
             entities = futures.pop(0).result()
             if not entities:
                 return
-
-
-
-
-
-
-
-
-
