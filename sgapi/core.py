@@ -56,7 +56,21 @@ def asyncable(func):
 
 class Shotgun(object):
 
-    def __init__(self, base_url, script_name, api_key, sudo_as_login=None):
+    def __init__(self,
+         base_url,
+         script_name=None,
+         api_key=None,
+         convert_datetimes_to_utc=True, # Ignored.
+         http_proxy=None,               # Ignored.
+         ensure_ascii=True,             # Ignored.
+         connect=True,                  # Ignored.
+         ca_certs=None,                 # Ignored.
+         login=None,                    # Ignored.
+         password=None,                 # Ignored.
+         sudo_as_login=None,
+         session_token=None,            # Ignored.
+    ):
+    
         """Construct the API client."""
         self.config = self # For API compatibility
 
